@@ -1,0 +1,55 @@
+name: Unzip and Build APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Unzip project files
+        run: |
+          unzip -o app.zip -d project_files
+          if [ -f "project_files/package.json" ]; then
+            cp -r project_files/* .
+          else
+            SUBDIR=$(find project_files -maxdepth 2 -name "package.json" -exec dirname {} \;)
+            cp -r "$SUBDIR"/* .
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install and build web app
+        run: |
+          npm install
+          npm run build
+
+      - name: Add Capacitor Android
+        run: |
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          npx cap init "Mirsal" "com.mirsal.chat" --web-dir=dist
+          npx cap add android
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mirsal-App-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
